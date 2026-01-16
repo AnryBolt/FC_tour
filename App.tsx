@@ -13,6 +13,7 @@ import { Button } from './components/Button';
 import { Input, Select } from './components/Input';
 import { MatchCard } from './components/MatchCard';
 import { analyzeTournament } from './services/geminiService';
+import { initializeCloudStorage, saveToCloud } from './services/storageService';
 import * as XLSX from 'xlsx';
 
 type TabType = 'profile' | 'setup' | 'matches' | 'standings' | 'playoff' | 'saved' | 'users';
@@ -44,10 +45,12 @@ export default function App() {
   const [expandedRounds, setExpandedRounds] = useState<Record<number, boolean>>({});
   const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>({});
   
-  const [allUsers, setAllUsers] = useState<UserProfile[]>(() => {
-    const saved = localStorage.getItem('fc25_all_users');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Cloud Loading State
+  const [isCloudLoading, setIsCloudLoading] = useState(true);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'saving' | 'error'>('synced');
+
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]); // Initial empty, loads from cloud
+  const [savedTournaments, setSavedTournaments] = useState<TournamentData[]>([]); // Initial empty, loads from cloud
 
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('fc25_user_profile');
@@ -91,51 +94,57 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  const [savedTournaments, setSavedTournaments] = useState<TournamentData[]>([]);
-
-  // Sync all users to local storage
+  // --- CLOUD INITIALIZATION ---
   useEffect(() => {
-    localStorage.setItem('fc25_all_users', JSON.stringify(allUsers));
-  }, [allUsers]);
+    const initCloud = async () => {
+        setIsCloudLoading(true);
+        const data = await initializeCloudStorage();
+        setAllUsers(data.users || []);
+        setSavedTournaments(data.tournaments || []);
+        setIsCloudLoading(false);
+    };
+    initCloud();
+  }, []);
 
-  // Sync current profile to local storage
+  // --- AUTO SAVE TO CLOUD (DEBOUNCED) ---
+  useEffect(() => {
+      if (isCloudLoading) return; // Don't overwrite cloud with empty initial state
+
+      const saveData = async () => {
+         setCloudSyncStatus('saving');
+         await saveToCloud({
+             users: allUsers,
+             tournaments: savedTournaments
+         });
+         setCloudSyncStatus('synced');
+      };
+
+      const timer = setTimeout(saveData, 2000); // 2 second debounce
+      return () => clearTimeout(timer);
+  }, [allUsers, savedTournaments, isCloudLoading]);
+
+
+  // Sync current profile to local storage (User session remains local)
   useEffect(() => {
     if (isAuthenticated) {
       localStorage.setItem('fc25_user_profile', JSON.stringify(userProfile));
       
-      // Ensure user is in the database
+      // Ensure user is in the database (synced to allUsers which goes to cloud)
       setAllUsers(prev => {
         const existing = prev.find(u => u.telegram.toLowerCase() === userProfile.telegram.toLowerCase());
         if (!existing && userProfile.telegram) {
             return [...prev, userProfile];
+        } else if (existing && (existing.fullName !== userProfile.fullName || existing.company !== userProfile.company || existing.age !== userProfile.age)) {
+            // Update existing profile info if changed
+            return prev.map(u => u.telegram.toLowerCase() === userProfile.telegram.toLowerCase() ? userProfile : u);
         }
         return prev;
       });
     }
   }, [userProfile, isAuthenticated]);
 
-  // Load saved tournaments on mount
-  useEffect(() => {
-     const saved = localStorage.getItem('saved_tournaments');
-     if (saved) {
-         try {
-             const parsed = JSON.parse(saved);
-             if (Array.isArray(parsed)) {
-                 setSavedTournaments(parsed);
-             }
-         } catch (e) {
-             console.error("Failed to load saved tournaments");
-             setSavedTournaments([]);
-         }
-     }
-  }, []);
-
-  // Synchronize localStorage whenever savedTournaments changes
-  useEffect(() => {
-    localStorage.setItem('saved_tournaments', JSON.stringify(savedTournaments));
-  }, [savedTournaments]);
-
-  // AUTO-SAVE logic
+  // AUTO-UPDATE SAVED LIST logic
+  // Whenever the ACTIVE tournament changes, update it in the savedTournaments list
   useEffect(() => {
       if (tournament) {
           setSavedTournaments(prev => {
@@ -256,7 +265,7 @@ export default function App() {
   };
 
   const saveToLocalStorage = (currentTournament: TournamentData) => {
-     alert("Турнир автоматически сохраняется при любых изменениях!");
+     alert("Турнир автоматически сохраняется в облако!");
   };
 
   const deleteSaved = (index: number, e: React.MouseEvent) => {
@@ -1102,7 +1111,7 @@ export default function App() {
                                               <span>{expandedRounds[round + group.id * 100] ? '▼' : '▶'}</span>
                                           </button>
                                           {expandedRounds[round + group.id * 100] && (
-                                              <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-2 border-t">
+                                              <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-2 border-t">
                                                   {grouped[round].map(match => (
                                                       <MatchCard 
                                                           key={match.id} 
@@ -1147,7 +1156,7 @@ export default function App() {
                                <span>{expandedRounds[round] ? '▼' : '▶'}</span>
                            </button>
                            {expandedRounds[round] && (
-                               <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-2 border-t">
+                               <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-2 border-t">
                                    {grouped[round].map(match => (
                                        <MatchCard 
                                           key={match.id} 
@@ -1662,6 +1671,18 @@ export default function App() {
       </div>
     );
   }
+  
+  // Loading screen for Cloud
+  if (isCloudLoading) {
+     return (
+        <div className="min-h-screen flex items-center justify-center bg-cream-50">
+           <div className="text-center">
+              <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <h2 className="text-teal-700 font-bold text-xl">Загрузка данных из облака...</h2>
+           </div>
+        </div>
+     );
+  }
 
   return (
     <div className="min-h-screen bg-cream-50 pb-12">
@@ -1675,6 +1696,15 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-2 relative">
+             {/* Cloud Status Indicator */}
+             <div title={cloudSyncStatus === 'saving' ? 'Сохранение...' : 'Синхронизировано'} className="transition-all">
+                {cloudSyncStatus === 'saving' ? (
+                   <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                ) : (
+                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                )}
+             </div>
+
             <div className="relative">
                 <Button variant="secondary" onClick={() => setShowExportMenu(!showExportMenu)} title="Скачать">📥</Button>
                 {showExportMenu && (
