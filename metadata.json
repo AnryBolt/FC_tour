@@ -1,0 +1,5 @@
+{
+  "name": "FC 25 Tournament Manager",
+  "description": "Комплексный менеджер турниров для FC 25 с поддержкой лиг, групп и плей-офф, включающий анализ на базе Gemini.",
+  "requestFramePermissions": []
+}

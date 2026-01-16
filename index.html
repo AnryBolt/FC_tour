@@ -1,0 +1,47 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FC 25 Менеджер Турниров</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              cream: {
+                50: 'rgba(252, 252, 249, 1)',
+                100: 'rgba(255, 255, 253, 1)',
+              },
+              teal: {
+                500: 'rgba(33, 128, 141, 1)',
+                600: 'rgba(29, 116, 128, 1)',
+              },
+              slate: {
+                900: 'rgba(19, 52, 59, 1)',
+              }
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs"
+  }
+}
+</script>
+</head>
+  <body class="bg-cream-50 text-slate-900 font-sans antialiased">
+    <div id="root"></div>
+  </body>
+</html>
