@@ -2,14 +2,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { PlayerStats, Match } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const analyzeTournament = async (
   standings: PlayerStats[],
   recentMatches: Match[],
   players: Map<number, string>
 ) => {
   try {
+    // Инициализируем AI здесь, чтобы не ломать приложение при старте, если ключа нет
+    // Используем process.env.API_KEY как требует инструкция
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
     const standingsText = standings.map((s, i) => 
       `${i + 1}. ${s.name} (И:${s.played} В:${s.won} Н:${s.drawn} П:${s.lost} Очки:${s.points})`
     ).join('\n');
@@ -40,6 +42,6 @@ export const analyzeTournament = async (
     return response.text;
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Не удалось сгенерировать анализ в данный момент. Попробуйте позже.";
+    return "Не удалось сгенерировать анализ. Проверьте API ключ или попробуйте позже.";
   }
 };

@@ -6,8 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FC 25 Менеджер Турниров</title>
     <script>
-      // Заглушка для process, чтобы приложение не падало в браузере при обращении к process.env
-      window.process = window.process || { env: {} };
+      // Глобальная заглушка для process, чтобы библиотеки, требующие Node.js environment, не падали
+      if (typeof window !== 'undefined') {
+        window.process = window.process || {};
+        window.process.env = window.process.env || {};
+      }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
